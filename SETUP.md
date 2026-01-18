@@ -35,7 +35,7 @@ npm install
 
 3. **Create environment file**:
 ```bash
-cp .env.example .env
+copy .env.example .env
 ```
 
 4. **Edit `.env` file** with your database credentials:
