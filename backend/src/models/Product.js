@@ -74,12 +74,7 @@ const Product = sequelize.define('Product', {
         defaultValue: true
     }
 }, {
-    tableName: 'products',
-    indexes: [
-        { fields: ['barcode'] },
-        { fields: ['category'] },
-        { fields: ['isActive'] }
-    ]
+    tableName: 'products'
 });
 
 // Virtual field for low stock status

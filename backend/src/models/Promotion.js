@@ -23,7 +23,7 @@ const Promotion = sequelize.define('Promotion', {
         allowNull: false
     },
     applicableProducts: {
-        type: DataTypes.ARRAY(DataTypes.UUID),
+        type: DataTypes.JSON,
         defaultValue: []
     },
     minPurchaseAmount: {
