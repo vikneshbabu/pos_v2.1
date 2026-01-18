@@ -1,0 +1,690 @@
+POS System v2.1 - Implementation Plan
+Overview
+This plan outlines the development of a comprehensive Point of Sale (POS) system with:
+
+Web Application: Angular-based responsive web app
+Android Support: Mobile-responsive design with barcode scanning capabilities
+Backend: Node.js with Express framework
+Database: MongoDB or PostgreSQL (decision required)
+Features: Sales, inventory, user management, customer management, and analytics
+User Review Required
+IMPORTANT
+
+Database Selection: Please confirm which database you prefer:
+
+MongoDB: NoSQL, flexible schema, easier for rapid development, good for document-based data
+PostgreSQL: SQL, structured schema, better for complex queries and transactions, ACID compliance
+Recommendation: PostgreSQL for POS systems due to transaction integrity requirements and complex reporting needs.
+
+IMPORTANT
+
+Monorepo Structure: Should we organize as:
+
+Option A: Monorepo with backend/ and frontend/ folders in pos_v2.1
+Option B: Separate repositories
+Recommendation: Monorepo for easier development and deployment coordination.
+
+WARNING
+
+Android App Approach:
+
+Option A: Responsive Angular web app (works on mobile browsers)
+Option B: Ionic/Capacitor wrapper (native app capabilities)
+Option C: Separate React Native/Flutter app
+Recommendation: Start with responsive Angular + Capacitor for barcode scanning, can be wrapped as native app later.
+
+Proposed Changes
+Project Structure
+pos_v2.1/
+├── backend/
+│   ├── src/
+│   │   ├── config/          # Database, JWT, environment configs
+│   │   ├── middleware/      # Auth, error handling, validation
+│   │   ├── models/          # Database models
+│   │   ├── routes/          # API routes
+│   │   ├── controllers/     # Business logic
+│   │   ├── services/        # Reusable services
+│   │   ├── utils/           # Helper functions
+│   │   └── server.js        # Entry point
+│   ├── tests/
+│   ├── package.json
+│   └── .env.example
+├── frontend/
+│   ├── src/
+│   │   ├── app/
+│   │   │   ├── core/        # Guards, interceptors, services
+│   │   │   ├── shared/      # Shared components, pipes, directives
+│   │   │   ├── modules/     # Feature modules
+│   │   │   │   ├── auth/
+│   │   │   │   ├── dashboard/
+│   │   │   │   ├── inventory/
+│   │   │   │   ├── pos/
+│   │   │   │   ├── customers/
+│   │   │   │   └── reports/
+│   │   │   └── app.module.ts
+│   │   ├── assets/
+│   │   └── environments/
+│   ├── angular.json
+│   └── package.json
+├── shared/                  # Shared types/interfaces
+└── README.md
+Backend Implementation
+[NEW] 
+package.json
+Dependencies:
+
+express: Web framework
+mongoose or pg + sequelize: Database ORM
+jsonwebtoken: JWT authentication
+bcryptjs: Password hashing
+cors: Cross-origin resource sharing
+dotenv: Environment variables
+express-validator: Input validation
+pdfkit: PDF generation for receipts
+exceljs: Excel export
+morgan: HTTP request logger
+helmet: Security headers
+[NEW] 
+server.js
+Purpose: Main entry point for the backend server
+
+Initialize Express app
+Connect to database
+Set up middleware (CORS, helmet, morgan, body-parser)
+Register routes
+Error handling middleware
+Start server on configured port
+[NEW] 
+config/database.js
+Purpose: Database connection configuration
+
+Connection string from environment variables
+Connection pooling settings
+Error handling and reconnection logic
+[NEW] 
+config/jwt.js
+Purpose: JWT configuration
+
+Secret key management
+Token expiration settings
+Token generation and verification utilities
+Authentication & User Management
+[NEW] 
+models/User.js
+Schema:
+
+{
+  username: String (unique),
+  email: String (unique),
+  password: String (hashed),
+  role: Enum ['admin', 'manager', 'cashier'],
+  firstName: String,
+  lastName: String,
+  isActive: Boolean,
+  lastLogin: Date,
+  createdAt: Date,
+  updatedAt: Date
+}
+[NEW] 
+models/ActivityLog.js
+Schema: Track user actions for audit trail
+
+{
+  userId: ObjectId/UUID,
+  action: String,
+  resource: String,
+  details: Object,
+  ipAddress: String,
+  timestamp: Date
+}
+[NEW] 
+middleware/auth.js
+Purpose: JWT authentication middleware
+
+Verify token from Authorization header
+Attach user info to request object
+Handle token expiration
+[NEW] 
+middleware/rbac.js
+Purpose: Role-based access control
+
+Check user permissions based on role
+Protect routes by required roles
+[NEW] 
+routes/auth.js
+Endpoints:
+
+POST /api/auth/login - User login
+POST /api/auth/logout - User logout
+POST /api/auth/refresh - Refresh token
+GET /api/auth/me - Get current user info
+[NEW] 
+routes/users.js
+Endpoints:
+
+GET /api/users - List users (admin only)
+POST /api/users - Create user (admin only)
+PUT /api/users/:id - Update user (admin/manager)
+DELETE /api/users/:id - Delete user (admin only)
+GET /api/users/:id/activity - Get user activity logs
+Product & Inventory Management
+[NEW] 
+models/Product.js
+Schema:
+
+{
+  sku: String (unique),
+  barcode: String (unique, indexed),
+  name: String,
+  description: String,
+  category: String,
+  price: Decimal,
+  costPrice: Decimal,
+  taxRate: Decimal,
+  stockQuantity: Integer,
+  minStockLevel: Integer,
+  unit: String,
+  imageUrl: String,
+  isActive: Boolean,
+  createdAt: Date,
+  updatedAt: Date
+}
+[NEW] 
+models/Supplier.js
+Schema:
+
+{
+  name: String,
+  contactPerson: String,
+  email: String,
+  phone: String,
+  address: Object,
+  isActive: Boolean
+}
+[NEW] 
+models/Purchase.js
+Schema: Track inventory purchases from suppliers
+
+{
+  purchaseNumber: String (unique),
+  supplierId: ObjectId/UUID,
+  items: [{
+    productId: ObjectId/UUID,
+    quantity: Integer,
+    costPrice: Decimal
+  }],
+  totalAmount: Decimal,
+  purchaseDate: Date,
+  receivedDate: Date,
+  status: Enum ['pending', 'received', 'cancelled']
+}
+[NEW] 
+models/StockAdjustment.js
+Schema: Manual stock adjustments
+
+{
+  productId: ObjectId/UUID,
+  adjustmentType: Enum ['add', 'remove', 'set'],
+  quantity: Integer,
+  reason: String,
+  performedBy: ObjectId/UUID,
+  timestamp: Date
+}
+[NEW] 
+routes/products.js
+Endpoints:
+
+GET /api/products - List products (with pagination, filters)
+GET /api/products/:id - Get product details
+GET /api/products/barcode/:barcode - Get product by barcode
+POST /api/products - Create product
+PUT /api/products/:id - Update product
+DELETE /api/products/:id - Delete product
+GET /api/products/low-stock - Get low-stock products
+[NEW] 
+routes/inventory.js
+Endpoints:
+
+POST /api/inventory/adjust - Manual stock adjustment
+GET /api/inventory/history/:productId - Stock adjustment history
+POST /api/inventory/purchase - Record purchase
+GET /api/inventory/purchases - List purchases
+[NEW] 
+services/stockAlert.js
+Purpose: Background service to check and alert on low stock
+
+Periodic check for products below minimum stock level
+Generate alerts/notifications
+Sales & Billing
+[NEW] 
+models/Order.js
+Schema:
+
+{
+  orderNumber: String (unique),
+  customerId: ObjectId/UUID (optional),
+  items: [{
+    productId: ObjectId/UUID,
+    productName: String,
+    quantity: Integer,
+    unitPrice: Decimal,
+    taxRate: Decimal,
+    discount: Decimal,
+    subtotal: Decimal
+  }],
+  subtotal: Decimal,
+  taxAmount: Decimal,
+  discountAmount: Decimal,
+  totalAmount: Decimal,
+  paymentMethod: Enum ['cash', 'card', 'upi', 'wallet'],
+  paymentStatus: Enum ['pending', 'completed', 'refunded'],
+  cashierId: ObjectId/UUID,
+  orderDate: Date,
+  status: Enum ['completed', 'cancelled', 'refunded']
+}
+[NEW] 
+models/Payment.js
+Schema:
+
+{
+  orderId: ObjectId/UUID,
+  amount: Decimal,
+  paymentMethod: String,
+  transactionId: String,
+  status: Enum ['success', 'failed', 'pending'],
+  timestamp: Date
+}
+[NEW] 
+models/Promotion.js
+Schema:
+
+{
+  name: String,
+  type: Enum ['percentage', 'fixed', 'buy_x_get_y'],
+  value: Decimal,
+  applicableProducts: [ObjectId/UUID],
+  startDate: Date,
+  endDate: Date,
+  isActive: Boolean
+}
+[NEW] 
+routes/orders.js
+Endpoints:
+
+POST /api/orders - Create order (checkout)
+GET /api/orders - List orders
+GET /api/orders/:id - Get order details
+POST /api/orders/:id/refund - Process refund
+GET /api/orders/:id/receipt - Generate receipt PDF
+[NEW] 
+services/invoiceGenerator.js
+Purpose: Generate PDF invoices/receipts using PDFKit
+
+Format order data
+Include business logo and details
+Generate printable receipt
+[NEW] 
+services/discountEngine.js
+Purpose: Calculate applicable discounts
+
+Check active promotions
+Apply discount rules
+Calculate final prices
+Customer Management
+[NEW] 
+models/Customer.js
+Schema:
+
+{
+  customerId: String (unique),
+  name: String,
+  email: String,
+  phone: String,
+  address: Object,
+  loyaltyPoints: Integer,
+  creditBalance: Decimal,
+  totalPurchases: Decimal,
+  lastPurchaseDate: Date,
+  createdAt: Date
+}
+[NEW] 
+routes/customers.js
+Endpoints:
+
+GET /api/customers - List customers
+GET /api/customers/:id - Get customer details
+POST /api/customers - Create customer
+PUT /api/customers/:id - Update customer
+GET /api/customers/:id/orders - Get customer purchase history
+POST /api/customers/:id/loyalty - Update loyalty points
+Reports & Analytics
+[NEW] 
+routes/reports.js
+Endpoints:
+
+GET /api/reports/sales - Sales report (daily/monthly/custom range)
+GET /api/reports/profit - Profit analysis
+GET /api/reports/tax - Tax report
+GET /api/reports/inventory - Inventory status report
+GET /api/reports/cash-drawer - Cash drawer reconciliation
+GET /api/reports/export/pdf - Export report as PDF
+GET /api/reports/export/excel - Export report as Excel
+[NEW] 
+services/reportGenerator.js
+Purpose: Generate various reports using aggregation queries
+
+Sales aggregation by date range
+Profit calculation (revenue - cost)
+Tax calculations
+Inventory valuation
+[NEW] 
+services/excelExporter.js
+Purpose: Export data to Excel format using ExcelJS
+
+Format data into spreadsheets
+Apply styling and formulas
+Frontend Implementation (Angular)
+[NEW] 
+package.json
+Dependencies:
+
+@angular/core, @angular/common, @angular/router
+@angular/forms, @angular/material (UI components)
+rxjs: Reactive programming
+chart.js + ng2-charts: Charts for reports
+ngx-barcode-scanner: Barcode scanning (web)
+@capacitor/core, @capacitor/camera: Native capabilities
+jspdf, jspdf-autotable: PDF generation client-side
+Core & Shared
+[NEW] 
+app/core/services/auth.service.ts
+Purpose: Authentication service
+
+Login/logout methods
+Token storage (localStorage/sessionStorage)
+Current user state (Observable)
+Auto-refresh token logic
+[NEW] 
+app/core/guards/auth.guard.ts
+Purpose: Route guard for authentication
+
+Check if user is logged in
+Redirect to login if not authenticated
+[NEW] 
+app/core/guards/role.guard.ts
+Purpose: Route guard for role-based access
+
+Check user role against required roles
+Prevent unauthorized access
+[NEW] 
+app/core/interceptors/auth.interceptor.ts
+Purpose: HTTP interceptor
+
+Attach JWT token to all API requests
+Handle 401 unauthorized responses
+[NEW] 
+app/core/interceptors/error.interceptor.ts
+Purpose: Global error handling
+
+Catch HTTP errors
+Display user-friendly error messages
+[NEW] 
+app/shared/models/
+Purpose: TypeScript interfaces matching backend models
+
+user.model.ts
+product.model.ts
+order.model.ts
+customer.model.ts
+etc.
+Authentication Module
+[NEW] 
+app/modules/auth/login/login.component.ts
+Purpose: Login page
+
+Login form with validation
+Call AuthService.login()
+Redirect to dashboard on success
+Display error messages
+[NEW] 
+app/modules/auth/login/login.component.html
+UI: Material Design login form
+
+Username/email input
+Password input
+Remember me checkbox
+Login button
+Dashboard Module
+[NEW] 
+app/modules/dashboard/dashboard.component.ts
+Purpose: Main dashboard with navigation
+
+Sidebar navigation
+Top bar with user info and logout
+Quick stats widgets (today's sales, low stock count, etc.)
+Router outlet for child routes
+[NEW] 
+app/modules/dashboard/dashboard.component.html
+UI: Responsive layout
+
+Material sidenav
+Dashboard cards with key metrics
+Navigation menu
+Inventory Module
+[NEW] 
+app/modules/inventory/product-list/product-list.component.ts
+Purpose: Display products in a table
+
+Pagination
+Search and filter
+Sort by columns
+Actions: Edit, Delete, View details
+Low stock indicator
+[NEW] 
+app/modules/inventory/product-form/product-form.component.ts
+Purpose: Add/Edit product form
+
+Reactive form with validation
+Barcode input (manual or scan)
+Image upload
+Save to backend API
+[NEW] 
+app/modules/inventory/barcode-scanner/barcode-scanner.component.ts
+Purpose: Barcode scanning component
+
+Use device camera (Capacitor) or webcam (web)
+Emit scanned barcode value
+Reusable across modules
+POS/Billing Module
+[NEW] 
+app/modules/pos/pos.component.ts
+Purpose: Main POS interface
+
+Product search (by name, SKU, barcode)
+Cart management (add, remove, update quantity)
+Apply discounts
+Select customer (optional)
+Calculate totals (subtotal, tax, discount, total)
+Checkout flow
+[NEW] 
+app/modules/pos/cart/cart.component.ts
+Purpose: Shopping cart display
+
+List cart items
+Update quantities
+Remove items
+Display running total
+[NEW] 
+app/modules/pos/checkout/checkout.component.ts
+Purpose: Checkout and payment
+
+Select payment method
+Process payment
+Generate receipt
+Print/email receipt option
+[NEW] 
+app/modules/pos/receipt/receipt.component.ts
+Purpose: Receipt preview and print
+
+Display order details
+Print functionality
+Download PDF option
+Customer Module
+[NEW] 
+app/modules/customers/customer-list/customer-list.component.ts
+Purpose: List all customers
+
+Search and filter
+View customer details
+Add new customer
+[NEW] 
+app/modules/customers/customer-detail/customer-detail.component.ts
+Purpose: Customer profile page
+
+Display customer info
+Purchase history table
+Loyalty points display
+Credit balance (if applicable)
+Reports Module
+[NEW] 
+app/modules/reports/sales-report/sales-report.component.ts
+Purpose: Sales analytics
+
+Date range selector
+Sales chart (line/bar chart)
+Sales data table
+Export buttons
+[NEW] 
+app/modules/reports/inventory-report/inventory-report.component.ts
+Purpose: Inventory status
+
+Current stock levels
+Low stock alerts
+Inventory valuation
+Export functionality
+[NEW] 
+app/modules/reports/profit-report/profit-report.component.ts
+Purpose: Profit analysis
+
+Revenue vs cost comparison
+Profit margins
+Charts and visualizations
+Mobile/Android Considerations
+[NEW] 
+capacitor.config.ts
+Purpose: Capacitor configuration for native features
+
+App ID and name
+Platform-specific settings
+Plugin configurations
+Responsive Design
+Use Angular Material's responsive breakpoints
+Mobile-first CSS approach
+Touch-friendly UI elements (larger buttons, spacing)
+Hamburger menu for mobile navigation
+Barcode Scanner Integration
+Use @capacitor/camera for native camera access
+Integrate barcode detection library
+Fallback to manual entry on web
+Configuration Files
+[NEW] 
+.env.example
+Environment variables:
+
+NODE_ENV=development
+PORT=3000
+DATABASE_URL=postgresql://user:password@localhost:5432/pos_db
+JWT_SECRET=your-secret-key
+JWT_EXPIRATION=24h
+CORS_ORIGIN=http://localhost:4200
+[NEW] 
+frontend/src/environments/environment.ts
+Frontend configuration:
+
+export const environment = {
+  production: false,
+  apiUrl: 'http://localhost:3000/api'
+};
+Verification Plan
+Automated Tests
+Backend Tests
+# Unit tests for services and utilities
+npm test
+# Integration tests for API endpoints
+npm run test:integration
+# Test coverage report
+npm run test:coverage
+Test coverage targets:
+
+Authentication & authorization flows
+CRUD operations for all models
+Business logic (discount calculation, stock alerts)
+Report generation
+Frontend Tests
+# Unit tests for components and services
+ng test
+# E2E tests
+ng e2e
+Test scenarios:
+
+Login/logout flow
+Product management (add, edit, delete)
+POS checkout flow
+Report generation and export
+Manual Verification
+Functional Testing
+User Management
+
+Create users with different roles
+Test role-based access control
+Verify activity logging
+Inventory Management
+
+Add products with barcodes
+Test barcode scanning
+Verify low-stock alerts
+Test stock adjustments
+Sales & Billing
+
+Create orders with multiple items
+Apply discounts and promotions
+Test all payment methods
+Generate and print receipts
+Process refunds
+Customer Management
+
+Create customer profiles
+Track purchase history
+Test loyalty points system
+Reports
+
+Generate sales reports for different date ranges
+Verify profit calculations
+Test export to PDF and Excel
+Validate tax reports
+Mobile/Responsive Testing
+Test on various screen sizes (desktop, tablet, mobile)
+Verify touch interactions
+Test barcode scanner on mobile device
+Check offline capability (if implemented)
+Performance Testing
+Load testing with multiple concurrent users
+Database query optimization
+Frontend bundle size optimization
+API response time benchmarks
+Security Testing
+SQL injection prevention
+XSS protection
+CSRF token validation
+JWT token security
+Password hashing verification
+Role-based access enforcement
+Browser Testing
+Chrome, Firefox, Safari, Edge
+Mobile browsers (Chrome Mobile, Safari iOS)
+Deployment Verification
+Backend deployment (Node.js server)
+Frontend deployment (static hosting or server)
+Database migration scripts
+Environment variable configuration
+SSL/HTTPS setup
