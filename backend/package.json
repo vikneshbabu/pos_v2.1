@@ -9,9 +9,15 @@
     "dev": "nodemon src/server.js",
     "test": "jest --coverage",
     "test:watch": "jest --watch",
-    "migrate": "node src/scripts/migrate.js"
+    "migrate": "node src/scripts/migrate.js",
+    "seed": "node src/scripts/seed.js"
   },
-  "keywords": ["pos", "point-of-sale", "inventory", "sales"],
+  "keywords": [
+    "pos",
+    "point-of-sale",
+    "inventory",
+    "sales"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
