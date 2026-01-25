@@ -1,1 +1,50 @@
-<p>login works!</p>
+<div class="login-container">
+    <div class="login-card">
+        <div class="login-header">
+            <h1>POS System v2.1</h1>
+            <p>Point of Sale Management</p>
+        </div>
+
+        <form #loginForm="ngForm" (ngSubmit)="onSubmit()">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" [(ngModel)]="credentials.username" required
+                    placeholder="Enter username" #username="ngModel" />
+                <div class="error" *ngIf="username.invalid && username.touched">
+                    Username is required
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" [(ngModel)]="credentials.password" required
+                    placeholder="Enter password" #password="ngModel" />
+                <div class="error" *ngIf="password.invalid && password.touched">
+                    Password is required
+                </div>
+            </div>
+
+            <div class="error-message" *ngIf="errorMessage">
+                {{ errorMessage }}
+            </div>
+
+            <button type="submit" class="login-btn" [disabled]="loginForm.invalid || isLoading">
+                <span *ngIf="!isLoading">Login</span>
+                <span *ngIf="isLoading">Logging in...</span>
+            </button>
+        </form>
+
+        <div class="demo-credentials">
+            <h3>Demo Credentials:</h3>
+            <div class="credential-item">
+                <strong>Admin:</strong> admin / admin123
+            </div>
+            <div class="credential-item">
+                <strong>Manager:</strong> manager / manager123
+            </div>
+            <div class="credential-item">
+                <strong>Cashier:</strong> cashier / cashier123
+            </div>
+        </div>
+    </div>
+</div>
